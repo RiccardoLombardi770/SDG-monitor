@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Mongolia SDG Monitor — Data Availability</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+ --paper:#FBFBFC; --ink:#14181F; --ink2:#2B313B; --mut:#69707B; --line:#E6E8EC;
+ --panel:#0F1319; --panelln:#242A33;
+ --up:#1F8A4C; --rec:#C6890B; --dat:#C0392B; --no:#98A0AC;
+ --upbg:#E7F4EC; --recbg:#FBF1DA; --datbg:#FAE7E4; --nobg:#EEF0F3;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);
+ font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3,.disp{font-family:"Archivo",sans-serif;letter-spacing:-.01em}
+.mono{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.wrap{max-width:1240px;margin:0 auto;padding:0 28px}
+a{color:inherit}
+
+.mast{background:var(--panel);color:#EAECEF;padding:38px 0 30px;border-bottom:3px solid #E5243B}
+.eyebrow{font-family:"IBM Plex Mono";font-size:11.5px;letter-spacing:.28em;text-transform:uppercase;color:#8B93A0}
+.mast h1{font-size:clamp(30px,4.6vw,52px);line-height:1.02;margin:10px 0 8px;font-weight:800;color:#fff;max-width:20ch}
+.mast p.sub{color:#AEB5C0;max-width:70ch;margin:0 0 26px;font-size:15px}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:0;border:1px solid var(--panelln);border-radius:12px;overflow:hidden}
+.kpi{padding:18px 20px;border-right:1px solid var(--panelln)}
+.kpi:last-child{border-right:0}
+.kpi .n{font-family:"Archivo";font-weight:800;font-size:34px;line-height:1;color:#fff}
+.kpi .n.small{font-size:26px}
+.kpi .l{font-size:11.5px;color:#8B93A0;margin-top:8px;letter-spacing:.02em}
+.kpi .l b{color:#C7CDD6;font-weight:600}
+
+/* DATA SOURCE BAR */
+.srcbar{background:#161B22;border-bottom:1px solid var(--panelln);color:#AEB5C0;font-size:12.5px}
+.srcbar .wrap{display:flex;align-items:center;gap:14px;padding:10px 28px;flex-wrap:wrap}
+.srcbar .dstat{display:inline-flex;align-items:center;gap:8px}
+.srcbar .dot{width:8px;height:8px;border-radius:50%;background:#3FB950;display:inline-block}
+.srcbar .dot.warn{background:#D29922}.srcbar .dot.err{background:#F85149}
+.srcbar b{color:#E6EDF3;font-weight:600}
+.srcbar .btn{margin-left:auto;display:inline-flex;align-items:center;gap:7px;border:1px solid #30363D;background:#21262D;color:#E6EDF3;
+ border-radius:7px;padding:6px 12px;font:inherit;font-size:12px;cursor:pointer}
+.srcbar .btn:hover{background:#30363D}
+.srcbar input[type=file]{display:none}
+
+section{padding:46px 0}
+.shead{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:22px}
+.shead h2{font-size:23px;font-weight:700;margin:0}
+.shead .tag{font-family:"IBM Plex Mono";font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut)}
+.lead{color:var(--mut);max-width:74ch;margin:-8px 0 24px;font-size:14.5px}
+
+.spectrum{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.gtile{position:relative;border:1px solid var(--line);border-radius:12px;padding:15px 15px 14px;
+ cursor:pointer;background:#fff;transition:transform .13s ease,box-shadow .13s ease;overflow:hidden}
+.gtile:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(20,24,31,.09)}
+.gtile.active{box-shadow:0 0 0 2px var(--ink)}
+.gtile .bar{position:absolute;left:0;top:0;bottom:0;width:6px}
+.gtile .gnum{font-family:"Archivo";font-weight:800;font-size:13px;color:#fff;display:inline-flex;
+ align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px}
+.gtile .gname{font-weight:600;font-size:13px;margin:9px 0 2px;line-height:1.25}
+.gtile .cov{display:flex;align-items:flex-end;gap:6px;margin-top:10px}
+.gtile .cov .pct{font-family:"Archivo";font-weight:800;font-size:26px;line-height:.9}
+.gtile .cov .of{font-size:11.5px;color:var(--mut);margin-bottom:2px}
+.gtile .track{height:5px;border-radius:3px;background:#EDEFF2;margin-top:9px;overflow:hidden}
+.gtile .fill{height:100%;border-radius:3px}
+.gtile .mini{display:flex;gap:10px;margin-top:9px;font-size:11px;color:var(--mut)}
+.gtile .mini b{color:var(--ink)}
+
+.charts{display:grid;grid-template-columns:1fr 1.35fr 1.1fr;gap:16px}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+.card h3{font-size:13px;font-weight:700;margin:0 0 3px;letter-spacing:.01em}
+.card .csub{font-size:11.5px;color:var(--mut);margin-bottom:12px}
+.chartbox{position:relative;height:210px}
+.legend{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:12px;font-size:11.5px;color:var(--ink2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:10px;height:10px;border-radius:3px;display:inline-block}
+
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+.search{flex:1;min-width:220px;display:flex;align-items:center;gap:8px;border:1px solid var(--line);
+ background:#fff;border-radius:9px;padding:9px 13px}
+.search input{border:0;outline:0;font:inherit;width:100%;background:transparent}
+.chip{border:1px solid var(--line);background:#fff;border-radius:20px;padding:7px 13px;font-size:12.5px;
+ cursor:pointer;font-weight:500;color:var(--ink2);white-space:nowrap}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+select{font:inherit;border:1px solid var(--line);border-radius:9px;padding:8px 11px;background:#fff;color:var(--ink);cursor:pointer}
+.count{font-size:12.5px;color:var(--mut);margin-left:auto}
+
+.tablewrap{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+table{border-collapse:collapse;width:100%}
+th{font-family:"IBM Plex Mono";font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);
+ text-align:left;padding:12px 14px;border-bottom:1px solid var(--line);background:#FafBfC;cursor:pointer;user-select:none;white-space:nowrap}
+th.sortable:hover{color:var(--ink)}
+th .arw{opacity:.4;font-size:9px}
+td{padding:11px 14px;border-bottom:1px solid #F0F1F4;vertical-align:middle;font-size:13px}
+tr:last-child td{border-bottom:0}
+tr.row{cursor:pointer}
+tr.row:hover td{background:#FBFCFE}
+.gdot{width:11px;height:11px;border-radius:3px;display:inline-block;vertical-align:-1px;margin-right:8px}
+.code{font-family:"IBM Plex Mono";font-size:12px;color:var(--ink2)}
+.iname{max-width:420px}
+.badge{display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;white-space:nowrap}
+.b-up_to_date{background:var(--upbg);color:var(--up)} .b-recent{background:var(--recbg);color:var(--rec)}
+.b-dated{background:var(--datbg);color:var(--dat)} .b-no_data{background:var(--nobg);color:#5B636F}
+.trend{font-family:"IBM Plex Mono";font-size:12.5px;font-weight:500}
+.t-up{color:var(--up)} .t-down{color:var(--dat)} .t-flat{color:var(--mut)}
+.cust{font-size:12px;color:var(--ink2)}
+
+.scrim{position:fixed;inset:0;background:rgba(15,19,25,.42);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
+.scrim.show{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;height:100%;width:min(460px,92vw);background:#fff;z-index:50;
+ transform:translateX(100%);transition:transform .24s cubic-bezier(.4,0,.2,1);overflow-y:auto;box-shadow:-14px 0 40px rgba(0,0,0,.14)}
+.drawer.show{transform:none}
+.dhead{padding:22px 24px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff;z-index:2}
+.dhead .x{float:right;border:0;background:#F1F2F5;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:16px;color:var(--ink2)}
+.dhead .dcode{font-family:"IBM Plex Mono";font-size:12px;color:#fff;padding:3px 8px;border-radius:6px;display:inline-block}
+.dhead h3{font-size:17px;margin:12px 0 0;line-height:1.28;font-weight:700}
+.dbody{padding:20px 24px 40px}
+.spark{width:100%;height:74px;margin:6px 0 18px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13px;margin-bottom:8px}
+.kv dt{color:var(--mut)} .kv dd{margin:0;text-align:right;font-weight:500}
+.dsec{margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
+.dsec h4{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin:0 0 10px;font-family:"IBM Plex Mono"}
+.note{background:#F7F8FA;border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--ink2);line-height:1.5}
+.pill{display:inline-block;font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:20px}
+
+/* LOADING / EMPTY STATE */
+#gate{position:fixed;inset:0;background:var(--paper);z-index:60;display:flex;align-items:center;justify-content:center;padding:24px}
+#gate .box{max-width:460px;text-align:center}
+#gate h2{font-size:20px;margin:0 0 8px}
+#gate p{color:var(--mut);font-size:14px;margin:0 0 20px;line-height:1.55}
+#gate .spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--panel);border-radius:50%;
+ animation:sp .8s linear infinite;margin:0 auto 18px}
+@keyframes sp{to{transform:rotate(360deg)}}
+#gate .fbtn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--panel);background:var(--panel);color:#fff;
+ border-radius:9px;padding:11px 18px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+#gate .fbtn:hover{background:#000}
+#gate input[type=file]{display:none}
+#gate .err{color:var(--dat);font-size:13px;margin-top:14px;min-height:18px}
+#gate .hint{font-size:12px;color:var(--mut);margin-top:16px}
+
+footer{background:var(--panel);color:#AEB5C0;padding:40px 0 46px;margin-top:20px}
+footer h4{color:#fff;font-family:"Archivo";font-size:14px;letter-spacing:.02em;margin:0 0 14px}
+.srcs{display:grid;grid-template-columns:1fr 1fr;gap:8px 26px}
+.srcs a{color:#9FD3E8;text-decoration:none;font-size:12.5px;border-bottom:1px solid transparent}
+.srcs a:hover{border-color:#9FD3E8}
+.fnote{font-size:12px;color:#79818E;max-width:80ch;margin-top:22px;line-height:1.6}
+
+@media(max-width:1000px){.spectrum{grid-template-columns:repeat(2,1fr)}.charts{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.kpi:nth-child(2){border-right:0}.iname{max-width:220px}.hidem{display:none}.srcs{grid-template-columns:1fr}}
+@media(max-width:560px){.spectrum{grid-template-columns:1fr}.wrap{padding:0 18px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<!-- LOADING / FILE GATE -->
+<div id="gate"><div class="box">
+  <div class="spin" id="gateSpin"></div>
+  <h2 id="gateTitle">Loading SDG data…</h2>
+  <p id="gateMsg">Reading the indicator workbook.</p>
+  <label class="fbtn" id="gatePick" style="display:none">📂 Choose Excel file
+    <input type="file" id="gateFile" accept=".xlsx,.xls"/></label>
+  <div class="err" id="gateErr"></div>
+  <div class="hint" id="gateHint"></div>
+</div></div>
+
+<div class="mast">
+ <div class="wrap">
+  <div class="eyebrow">Mongolia &nbsp;·&nbsp; Sustainable Development Goals &nbsp;·&nbsp; 2016–2024</div>
+  <h1>Where the data is, and whose job it is.</h1>
+  <p class="sub">A monitoring view of every SDG indicator tracked for Mongolia — what has data, how current it is, which UN custodian agency owns it, and how far each one sits from its target.</p>
+  <div class="kpis" id="kpis"></div>
+ </div>
+</div>
+
+<!-- DATA SOURCE STATUS + RELOAD -->
+<div class="srcbar"><div class="wrap">
+  <span class="dstat"><span class="dot" id="srcDot"></span><span id="srcText">—</span></span>
+  <label class="btn">↻ Load a different file<input type="file" id="reFile" accept=".xlsx,.xls"/></label>
+</div></div>
+
+<section>
+ <div class="wrap">
+  <div class="shead"><h2>Coverage spectrum</h2><span class="tag" id="specTag">click a goal to filter</span></div>
+  <p class="lead">Each goal is shown in its official SDG colour. The figure is the share of that goal's indicators that have any data; the bar underneath splits current (2024) from older years. Goal 14 (Life below water) is absent — Mongolia is landlocked.</p>
+  <div class="spectrum" id="spectrum"></div>
+ </div>
+</section>
+
+<section style="padding-top:8px">
+ <div class="wrap">
+  <div class="charts">
+   <div class="card"><h3>Freshness</h3><div class="csub" id="freshSub">Latest year with data</div>
+     <div class="chartbox"><canvas id="freshChart"></canvas></div>
+     <div class="legend" id="freshLegend"></div></div>
+   <div class="card"><h3>Coverage by goal</h3><div class="csub">Indicators with data vs total</div>
+     <div class="chartbox"><canvas id="goalChart"></canvas></div></div>
+   <div class="card"><h3>Top UN custodian agencies</h3><div class="csub">By number of Mongolia indicators owned</div>
+     <div class="chartbox"><canvas id="agencyChart"></canvas></div></div>
+  </div>
+ </div>
+</section>
+
+<section style="padding-top:8px">
+ <div class="wrap">
+  <div class="shead"><h2>Indicator register</h2><span class="tag">search · filter · sort · click a row for detail</span></div>
+  <div class="controls">
+   <label class="search">🔎<input id="q" placeholder="Search indicator, code, agency…"/></label>
+   <div class="chip on" data-st="all">All</div>
+   <div class="chip" data-st="up_to_date">Up to date</div>
+   <div class="chip" data-st="recent">Recent</div>
+   <div class="chip" data-st="dated">Dated</div>
+   <div class="chip" data-st="no_data">No data</div>
+   <select id="agencySel"><option value="all">All agencies</option></select>
+   <span class="count" id="count"></span>
+  </div>
+  <div class="tablewrap">
+   <table>
+    <thead><tr>
+     <th class="sortable" data-k="g">Goal <span class="arw">▲▼</span></th>
+     <th class="sortable" data-k="name">Indicator <span class="arw">▲▼</span></th>
+     <th class="sortable" data-k="ly">Latest <span class="arw">▲▼</span></th>
+     <th class="sortable" data-k="pc">Trend <span class="arw">▲▼</span></th>
+     <th class="sortable" data-k="st">Status <span class="arw">▲▼</span></th>
+     <th class="sortable hidem" data-k="cust">UN custodian <span class="arw">▲▼</span></th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+   </table>
+  </div>
+ </div>
+</section>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer"></aside>
+
+<footer>
+ <div class="wrap">
+  <h4>Sources</h4>
+  <div class="srcs" id="srcs"></div>
+  <p class="fnote">This page reads the National Statistics Office data-availability workbook directly and recomputes every figure (status, coverage, freshness, per-goal and per-agency totals) each time it loads. UN custodian agencies, numeric targets and the improving/worsening direction are not in the NSO workbook; they come from a fixed reference table built into this page following the IAEG-SDGs custodian framework, and change only when a new indicator is added. The "national source" is the reporting body inside Mongolia (mostly the National Statistics Office). Progress interpretation is shown only where the desired direction is unambiguous.</p>
+ </div>
+</footer>
+
+<script>
+/* ============================================================================
+   STABLE REFERENCE TABLE  (rarely changes — only when a NEW indicator appears)
+   Keyed by SDG indicator code. Holds what the NSO workbook does NOT contain:
+     cust  = UN custodian agency/agencies
+     dir   = desired direction ('up' = higher is better, 'down' = lower is better)
+     tv/tyr/tmet/tnote/tnoteonly = numeric target info, where an official one exists
+   Everything else (values, base, org, data source, status) is read live from Excel.
+   ============================================================================ */
+const ENRICH = {"1.1.1":{"cust":"World Bank","dir":"down","tv":0.0,"tyr":2030,"tmet":false,"tnote":"End extreme poverty (below intl poverty line) for all"},"1.2.1":{"cust":"World Bank","dir":"down","tv":15.0,"tyr":2030,"tmet":false,"tnote":"Vision 2050: national poverty rate to 20% by 2025 and 15% by 2030"},"1.3.1":{"cust":"ILO","dir":"up"},"1.4.2":{"cust":"UN-Habitat, World Bank","dir":"up"},"1.5.1":{"cust":"UNDRR","dir":"down"},"1.5.2":{"cust":"UNDRR"},"1.5.3":{"cust":"UNDRR"},"1.5.4":{"cust":"UNDRR"},"1.a.2":{"cust":"UNESCO-UIS, WHO, ILO"},"2.2.1":{"cust":"UNICEF, WHO, World Bank","dir":"down"},"2.2.2":{"cust":"UNICEF, WHO, World Bank"},"2.2.3":{"cust":"WHO"},"2.5.1":{"cust":"FAO"},"2.a.1":{"cust":"FAO"},"2.a.2":{"cust":"OECD, FAO"},"2.b.1":{"cust":"WTO, FAO, OECD"},"2.c.1":{"cust":"FAO"},"3.1.1":{"cust":"WHO, UNICEF","dir":"down","tv":70.0,"tyr":2030,"tmet":true,"tnote":"Global target 3.1: MMR below 70 per 100,000 live births"},"3.1.2":{"cust":"UNICEF, WHO","dir":"up"},"3.2.1":{"cust":"UNICEF, WHO","dir":"down","tv":25.0,"tyr":2030,"tmet":true,"tnote":"Global target 3.2: under-5 mortality <=25 per 1,000 live births"},"3.2.2":{"cust":"UNICEF, WHO","dir":"down","tv":12.0,"tyr":2030,"tmet":true,"tnote":"Global target 3.2: neonatal mortality <=12 per 1,000 live births"},"3.3.1":{"cust":"UNAIDS","dir":"down"},"3.3.2":{"cust":"WHO","dir":"down"},"3.3.4":{"cust":"WHO","dir":"down"},"3.4.1":{"cust":"WHO","dir":"down"},"3.4.2":{"cust":"WHO","dir":"down"},"3.6.1":{"cust":"WHO","dir":"down"},"3.7.1":{"cust":"UNFPA","dir":"up"},"3.7.2":{"cust":"UN DESA Population Division"},"3.8.1":{"cust":"WHO, World Bank","dir":"up"},"3.9.3":{"cust":"WHO","dir":"down"},"3.a.1":{"cust":"WHO"},"3.b.1":{"cust":"WHO, UNICEF"},"3.b.2":{"cust":"OECD, WHO"},"3.c.1":{"cust":"WHO","dir":"up"},"3.d.1":{"cust":"WHO","dir":"up"},"4.1.1":{"cust":"UNESCO-UIS"},"4.1.2":{"cust":"UNESCO-UIS"},"4.2.1":{"cust":"UNICEF"},"4.2.2":{"cust":"UNESCO-UIS","dir":"up"},"4.4.1":{"cust":"UNESCO-UIS"},"4.5.1":{"cust":"UNESCO-UIS"},"4.6.1":{"cust":"UNESCO-UIS"},"4.a.1":{"cust":"UNESCO-UIS"},"4.b.1":{"cust":"OECD, UNESCO-UIS"},"4.c.1":{"cust":"UNESCO-UIS"},"5.1.1":{"cust":"UN Women, World Bank, OECD"},"5.2.1":{"cust":"UN Women, WHO, UNSD"},"5.2.2":{"cust":"UNODC, UN Women"},"5.3.1":{"cust":"UNICEF"},"5.5.1":{"cust":"IPU, UN Women"},"5.5.2":{"cust":"ILO","dir":"up"},"5.6.1":{"cust":"UNFPA"},"5.6.2":{"cust":"UNFPA"},"5.a.2":{"cust":"FAO"},"5.b.1":{"cust":"ITU"},"5.c.1":{"cust":"UN Women, OECD, UNDP"},"6.1.1":{"cust":"WHO, UNICEF","dir":"up"},"6.2.1":{"cust":"WHO, UNICEF"},"6.4.1":{"cust":"FAO"},"6.5.1":{"cust":"UNEP"},"6.5.2":{"cust":"UNEP, UNECE"},"6.a.1":{"cust":"WHO, UNEP"},"6.b.1":{"cust":"WHO, UNEP"},"7.1.1":{"cust":"World Bank, IEA","dir":"up"},"7.1.2":{"cust":"WHO"},"7.2.1":{"cust":"IEA, IRENA, UNSD","dir":"up","tnoteonly":"Mongolia targets 20% renewables in installed electricity capacity (SDV 2030 / Vision 2050). Indicator 7.2.1 instead measures the renewable share of total final energy consumption, so the two are not directly comparable - read this as a trend."},"7.3.1":{"cust":"IEA, UNSD","dir":"down"},"7.a.1":{"cust":"IRENA, OECD, IEA"},"8.1.1":{"cust":"UNSD"},"8.2.1":{"cust":"ILO"},"8.3.1":{"cust":"ILO"},"8.4.2":{"cust":"UNEP"},"8.5.1":{"cust":"ILO"},"8.5.2":{"cust":"ILO","dir":"down"},"8.6.1":{"cust":"ILO","dir":"down"},"8.7.1":{"cust":"ILO","dir":"down"},"8.8.1":{"cust":"ILO"},"8.8.2":{"cust":"ILO"},"8.9.1":{"cust":"UN Tourism (UNWTO)"},"8.10.1":{"cust":"IMF, World Bank"},"8.10.2":{"cust":"World Bank, IMF","dir":"up"},"8.a.1":{"cust":"WTO, OECD"},"8.b.1":{"cust":"ILO"},"9.1.2":{"cust":"ICAO, ITF, UNCTAD"},"9.2.1":{"cust":"UNIDO"},"9.2.2":{"cust":"UNIDO, ILO","dir":"up"},"9.3.1":{"cust":"UNIDO"},"9.3.2":{"cust":"UNIDO"},"9.4.1":{"cust":"UNIDO, UNFCCC"},"9.5.1":{"cust":"UNESCO-UIS","dir":"up"},"9.a.1":{"cust":"OECD"},"9.b.1":{"cust":"UNIDO"},"10.1.1":{"cust":"World Bank"},"10.2.1":{"cust":"World Bank"},"10.3.1":{"cust":"OHCHR, UNDP"},"10.4.1":{"cust":"ILO, IMF","dir":"up"},"10.b.1":{"cust":"OECD"},"11.2.1":{"cust":"UN-Habitat"},"11.4.1":{"cust":"UNESCO-UIS"},"11.5.1":{"cust":"UNDRR"},"11.6.1":{"cust":"UN-Habitat","dir":"up"},"11.6.2":{"cust":"WHO, UNEP"},"11.b.1":{"cust":"UNDRR"},"11.b.2":{"cust":"UNDRR"},"12.1.1":{"cust":"UNEP"},"12.2.2":{"cust":"UNEP, UNSD"},"12.6.1":{"cust":"UNEP"},"12.7.1":{"cust":"UNEP"},"12.b.1":{"cust":"UN Tourism (UNWTO)"},"12.c.1":{"cust":"UNEP"},"13.1.1":{"cust":"UNDRR"},"13.1.2":{"cust":"UNDRR"},"13.1.3":{"cust":"UNDRR"},"13.2.1":{"cust":"UNFCCC"},"15.1.1":{"cust":"FAO"},"15.1.2":{"cust":"UNEP-WCMC, UNEP"},"15.2.1":{"cust":"FAO"},"15.3.1":{"cust":"UNCCD"},"15.4.1":{"cust":"UNEP-WCMC, IUCN"},"15.4.2":{"cust":"FAO, UNEP"},"15.5.1":{"cust":"IUCN","dir":"up"},"15.a.1":{"cust":"UNEP, OECD"},"15.b.1":{"cust":"UNEP, OECD"},"16.1.1":{"cust":"UNODC","dir":"down"},"16.1.2":{"cust":"UNODC, OHCHR"},"16.1.3":{"cust":"UNODC"},"16.1.4":{"cust":"UNODC"},"16.2.1":{"cust":"UNICEF","dir":"down"},"16.2.2":{"cust":"UNODC"},"16.3.1":{"cust":"UNODC"},"16.5.1":{"cust":"UNODC, World Bank"},"16.5.2":{"cust":"World Bank"},"16.6.1":{"cust":"IMF, UNSD"},"16.6.2":{"cust":"UNDP"},"16.7.1":{"cust":"IPU, UNDP, UN Women"},"16.7.2":{"cust":"UNDP"},"16.9.1":{"cust":"UNICEF","dir":"up"},"16.10.1":{"cust":"OHCHR"},"16.10.2":{"cust":"UNESCO-UIS"},"16.a.1":{"cust":"OHCHR"},"16.b.1":{"cust":"OHCHR, UNDP"},"17.1.1":{"cust":"IMF","dir":"up"},"17.1.2":{"cust":"IMF","dir":"up"},"17.3.1":{"cust":"OECD, UNCTAD"},"17.3.2":{"cust":"World Bank"},"17.4.1":{"cust":"World Bank, IMF"},"17.8.1":{"cust":"ITU"},"17.9.1":{"cust":"OECD, UNDP"},"17.10.1":{"cust":"WTO"},"17.11.1":{"cust":"WTO, UNCTAD, ITC","dir":"up"},"17.12.1":{"cust":"WTO, UNCTAD, ITC"},"17.13.1":{"cust":"IMF"},"17.17.1":{"cust":"UNECE, World Bank"},"17.18.2":{"cust":"PARIS21, UNSD"},"17.19.1":{"cust":"UNSD"},"17.19.2":{"cust":"UNSD"}};
+
+/* Official SDG short titles + colours (stable) */
+const SDGSHORT={1:'No Poverty',2:'Zero Hunger',3:'Good Health',4:'Quality Education',5:'Gender Equality',6:'Clean Water',7:'Clean Energy',8:'Decent Work',9:'Industry & Innovation',10:'Reduced Inequalities',11:'Sustainable Cities',12:'Responsible Consumption',13:'Climate Action',14:'Life Below Water',15:'Life on Land',16:'Peace & Justice',17:'Partnerships'};
+const SDGCOL={1:'#E5243B',2:'#DDA63A',3:'#4C9F38',4:'#C5192D',5:'#FF3A21',6:'#26BDE2',7:'#FCC30B',8:'#A21942',9:'#FD6925',10:'#DD1367',11:'#FD9D24',12:'#BF8B2E',13:'#3F7E44',14:'#0A97D9',15:'#56C02B',16:'#00689D',17:'#19486A'};
+const STC={up_to_date:'#1F8A4C',recent:'#C6890B',dated:'#C0392B',no_data:'#98A0AC'};
+const STL={up_to_date:'Up to date',recent:'Recent',dated:'Dated',no_data:'No data'};
+
+/* Fixed source links (stable) */
+const SOURCES=[
+ ["UN SDG global indicator framework (A/RES/71/313) & indicator list","https://unstats.un.org/sdgs/indicators/indicators-list/"],
+ ["IAEG-SDGs custodian agencies & Tier Classification","https://unstats.un.org/sdgs/iaeg-sdgs/tier-classification/"],
+ ["UN SDG indicators metadata repository (custodians & methods)","https://unstats.un.org/sdgs/metadata/"],
+ ["National Statistics Office of Mongolia — open data API","https://opendata.1212.mn/en/doc"],
+ ["National Statistics Office of Mongolia — PxWeb data","https://data.1212.mn/"],
+ ["Mongolia national SDG portal (NSO)","https://sdg.1212.mn/en"],
+ ["Mongolia Voluntary National Review 2023 (HLPF)","https://hlpf.un.org/countries/mongolia/voluntary-national-reviews-2023"],
+ ["Mongolia Vision 2050 SDG national commitment","https://sdgs.un.org/national-commitments-sdg-transformation/22033"]
+];
+
+/* ============================================================================
+   HELPERS
+   ============================================================================ */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const fmt=v=>v==null?'\u2014':(Math.abs(v)>=1000?v.toLocaleString(undefined,{maximumFractionDigits:1}):(Math.round(v*100)/100));
+
+const CYR={'\u0430':'a','\u0441':'c','\u0435':'e','\u043E':'o','\u0440':'p','\u0445':'x','\u0451':'e'};
+function normCode(s){ if(!s) return ''; return String(s).toLowerCase().replace(/[\u0430\u0441\u0435\u043E\u0440\u0445\u0451]/g,ch=>CYR[ch]||ch); }
+function extractCode(name){ if(!name) return null; const m=String(name).match(/^\s*(\d+(?:\.[0-9a-z\u0430-\u044F\u0451]+){1,2})/i); return m?m[1].replace(/\.$/,''):null; }
+function enrichFor(code){ if(!code) return {}; const nc=normCode(code); for(const k in ENRICH){ if(normCode(k)===nc) return ENRICH[k]; } return {}; }
+function toNum(v){ if(v==null) return null; if(typeof v==='number') return isNaN(v)?null:v; const s=String(v).trim(); if(s===''||s==='-'||s==='\u2013') return null; const n=parseFloat(s.replace(',','.')); return isNaN(n)?null:n; }
+function isYearLike(v){ const n=+v; return Number.isInteger(n)&&n>=2000&&n<=2035; }
+
+/* ============================================================================
+   PARSE WORKBOOK  ->  DATA  (mirrors the original hand-built structure)
+   ============================================================================ */
+function parseWorkbook(wb){
+ let sheetName = wb.SheetNames.find(n=>/availability/i.test(n)) || wb.SheetNames[0];
+ const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, raw:true, defval:null});
+
+ // locate header row (the one that mentions "Base year")
+ let hr=-1;
+ for(let i=0;i<Math.min(25,rows.length);i++){
+   const r=rows[i]||[];
+   if(r.some(c=>typeof c==='string'&&/base\s*year/i.test(c))){ hr=i; break; }
+ }
+ if(hr<0) throw new Error('Could not find the header row (no "Base year" column). Is this the NSO data-availability sheet?');
+
+ // map columns by header text (resilient to column re-ordering)
+ const H=rows[hr], col={years:{}};
+ H.forEach((c,idx)=>{
+   if(c==null) return; const s=String(c).trim(), sl=s.toLowerCase();
+   if(sl==='no') col.no=idx;
+   else if(sl.includes('base year')) col.by=idx;
+   else if(sl.includes('base level')) col.bl=idx;
+   else if(sl.includes('rganization')) col.org=idx;       // NB header uses a Cyrillic O
+   else if(sl.includes('source')) col.src=idx;
+   else if(isYearLike(s)) col.years[+s]=idx;
+   else if(col.name===undefined && sl.includes('indicator')) col.name=idx;
+ });
+ if(col.no===undefined) col.no=0;
+ if(col.name===undefined) col.name=1;
+ const years=Object.keys(col.years).map(Number).sort((a,b)=>a-b);
+ if(!years.length) throw new Error('No year columns detected in the sheet header.');
+ const latestYear=years[years.length-1];
+
+ const records=[]; const goalNames={}; let curGoal=null; let id=0;
+ for(let i=hr+1;i<rows.length;i++){
+   const r=rows[i]||[]; const a=r[0];
+   if(typeof a==='string' && /^\s*goal\s*\d+/i.test(a)){
+     const m=a.match(/goal\s*(\d+)\s*\.?\s*(.*)$/i);
+     curGoal=+m[1]; goalNames[curGoal]=(m[2]||'').trim(); continue;
+   }
+   const noVal=r[col.no];
+   const isMain=(typeof noVal==='number')||(typeof noVal==='string'&&/^\d+$/.test(String(noVal).trim()));
+   if(!isMain) continue;
+
+   const name=(r[col.name]!=null?String(r[col.name]).trim():'');
+   const code=extractCode(name);
+   const series=years.map(y=>toNum(r[col.years[y]]));
+   const by=toNum(r[col.by]), bl=toNum(r[col.bl]);
+   const org=(col.org!=null&&r[col.org]!=null)?String(r[col.org]).trim():'\u2013';
+
+   // latest year that actually holds a value
+   let ly=null,lv=null;
+   for(let k=years.length-1;k>=0;k--){ if(series[k]!=null){ ly=years[k]; lv=series[k]; break; } }
+
+   // status from freshness
+   let st='no_data';
+   if(ly===latestYear) st='up_to_date';
+   else if(ly!=null && ly>=latestYear-2) st='recent';
+   else if(ly!=null) st='dated';
+
+   // change base -> latest
+   let pc=null,tr=null;
+   if(bl!=null && lv!=null && bl!==0){
+     pc=Math.round(((lv-bl)/Math.abs(bl))*1000)/10;
+     tr = pc>0.05?'increased':(pc<-0.05?'decreased':'stable');
+   } else if(bl!=null && lv!=null && bl===0){
+     tr = lv>0?'increased':(lv<0?'decreased':'stable');
+   }
+
+   const e=enrichFor(code);
+   const cust=e.cust||'';
+   // improving / worsening derived live from desired direction + actual movement
+   let intp='n/d';
+   if(e.dir && pc!=null){
+     if(Math.abs(pc)<0.05) intp='stable';
+     else if(e.dir==='down') intp = pc<0?'improving':'worsening';
+     else if(e.dir==='up')   intp = pc>0?'improving':'worsening';
+   }
+
+   // target assessment (recompute "met" live against latest value)
+   let tmet=null;
+   if(e.tv!=null && lv!=null && e.dir){
+     tmet = (e.dir==='down') ? (lv<=e.tv) : (lv>=e.tv);
+   } else if(e.tv!=null && e.tmet!=null){ tmet=e.tmet; }
+
+   records.push({
+     id:id++, no:+String(noVal).trim(), g:curGoal, code:code||'\u2013', name,
+     series, ly, lv, st, org, cust,
+     by, bl, pc, tr, intp,
+     tv:(e.tv!=null?e.tv:null), tyr:(e.tyr!=null?e.tyr:null), tmet,
+     tnote:e.tnote||null, tnoteonly:e.tnoteonly||null
+   });
+ }
+
+ // ---- aggregates ----
+ const goalsMap={};
+ records.forEach(r=>{
+   const g=r.g; if(g==null) return;
+   const G=goalsMap[g]||(goalsMap[g]={goal_no:g,total:0,up_to_date:0,recent:0,dated:0,no_data:0,with_data:0,fresh:0});
+   G.total++; G[r.st]++; if(r.st!=='no_data') G.with_data++; if(r.ly===latestYear) G.fresh++;
+ });
+ const goals=Object.values(goalsMap).sort((a,b)=>a.goal_no-b.goal_no).map(G=>({
+   goal_no:G.goal_no, short:SDGSHORT[G.goal_no]||('Goal '+G.goal_no),
+   name:goalNames[G.goal_no]||'', total:G.total, up_to_date:G.up_to_date, recent:G.recent,
+   dated:G.dated, no_data:G.no_data, with_data:G.with_data,
+   coverage_pct:Math.round(G.with_data/G.total*100), fresh_pct:Math.round(G.fresh/G.total*100)
+ }));
+
+ // agencies (split co-custodians)
+ const agMap={};
+ records.forEach(r=>{
+   (r.cust||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(a=>{
+     const A=agMap[a]||(agMap[a]={a,t:0,w:0,n:0});
+     A.t++; if(r.st==='no_data') A.n++; else A.w++;
+   });
+ });
+ const agencies=Object.values(agMap).sort((a,b)=>b.t-a.t);
+
+ const summary={total:records.length,
+   with_data:records.filter(r=>r.st!=='no_data').length,
+   up_to_date:records.filter(r=>r.st==='up_to_date').length,
+   recent:records.filter(r=>r.st==='recent').length,
+   dated:records.filter(r=>r.st==='dated').length,
+   no_data:records.filter(r=>r.st==='no_data').length,
+   goals_present:goals.length};
+
+ return {sheetName, years, latestYear, summary, goals, agencies, records, sources:SOURCES};
+}
+
+/* ============================================================================
+   RENDER
+   ============================================================================ */
+let DATA=null;
+const state={q:'',st:'all',goal:null,agency:'all',sortK:'g',sortDir:1};
+
+function renderAll(){
+ const S=DATA.summary, LY=DATA.latestYear;
+ // KPIs
+ $('#kpis').innerHTML=[
+  [S.goals_present+' <span style="font-size:20px;color:#8B93A0">/17</span>','SDG goals with indicators','small'],
+  [S.total,'indicators tracked',''],
+  [S.with_data+' <span style="font-size:20px;color:#8B93A0">('+Math.round(S.with_data/S.total*100)+'%)</span>','have data','small'],
+  [S.up_to_date,'current to <b>'+LY+'</b>',''],
+  [S.no_data,'have no data yet','']
+ ].map(k=>`<div class="kpi"><div class="n ${k[2]}">${k[0]}</div><div class="l">${k[1]}</div></div>`).join('');
+
+ // SPECTRUM
+ $('#spectrum').innerHTML=DATA.goals.map(g=>{
+  const c=SDGCOL[g.goal_no], cov=g.coverage_pct;
+  const w2024=Math.round(g.up_to_date/g.total*100), wOld=Math.round((g.recent+g.dated)/g.total*100);
+  return `<div class="gtile" data-g="${g.goal_no}">
+    <div class="bar" style="background:${c}"></div>
+    <span class="gnum" style="background:${c}">${g.goal_no}</span>
+    <div class="gname">${g.short}</div>
+    <div class="cov"><span class="pct" style="color:${c}">${cov}%</span><span class="of">${g.with_data}/${g.total} with data</span></div>
+    <div class="track"><div class="fill" style="width:${w2024}%;background:${c};display:inline-block;height:100%"></div><div class="fill" style="width:${wOld}%;background:${c};opacity:.4;display:inline-block;height:100%"></div></div>
+    <div class="mini"><span><b>${g.up_to_date}</b> @${LY}</span><span><b>${g.no_data}</b> missing</span></div>
+  </div>`;
+ }).join('');
+ $$('.gtile').forEach(t=>t.onclick=()=>{const g=+t.dataset.g; state.goal=(state.goal===g?null:g); $$('.gtile').forEach(x=>x.classList.toggle('active',+x.dataset.g===state.goal)); renderTable();});
+ $('#specTag').textContent=DATA.goals.length+' of 17 goals · click a goal to filter';
+
+ // agency select
+ $('#agencySel').innerHTML='<option value="all">All agencies</option>'+DATA.agencies.map(a=>`<option value="${a.a}">${a.a} (${a.t})</option>`).join('');
+
+ // SOURCES
+ $('#srcs').innerHTML=DATA.sources.map(s=>`<a href="${s[1]}" target="_blank" rel="noopener">\u2197 ${s[0]}</a>`).join('');
+ $('#freshSub').textContent='Latest year with data, all '+S.total+' indicators';
+
+ renderTable();
+ buildCharts();
+}
+
+function buildCharts(){
+ if(typeof Chart==='undefined'){
+   $$('.chartbox').forEach(b=>b.innerHTML='<div style="display:flex;height:100%;align-items:center;justify-content:center;color:var(--mut);font-size:12px;text-align:center;padding:0 20px">Chart library unavailable.<br>The register below has the full data.</div>');
+   return;
+ }
+ if(window._charts) window._charts.forEach(c=>{try{c.destroy()}catch(e){}});
+ window._charts=[];
+ Chart.defaults.font.family="'IBM Plex Sans'";Chart.defaults.font.size=11;Chart.defaults.color='#69707B';
+ const LY=DATA.latestYear;
+ const yearsCount={}; DATA.years.forEach(y=>yearsCount[y]=0); let noData=0;
+ DATA.records.forEach(r=>{ if(r.ly) yearsCount[r.ly]=(yearsCount[r.ly]||0)+1; else noData++; });
+ const fyears=DATA.years.slice();
+ const fcolors=fyears.map(y=>y===LY?'#1F8A4C':(y>=LY-2?'#C6890B':'#C0392B'));
+ window._charts.push(new Chart($('#freshChart'),{type:'doughnut',data:{labels:fyears.map(String).concat(['No data']),
+  datasets:[{data:fyears.map(y=>yearsCount[y]).concat([noData]),backgroundColor:fcolors.concat(['#D3D8DF']),borderWidth:2,borderColor:'#fff'}]},
+  options:{cutout:'62%',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.label}: ${c.raw} indicators`}}}}}));
+ $('#freshLegend').innerHTML=[['#1F8A4C',LY+' (current)'],['#C6890B',(LY-2)+'\u2013'+(LY-1)],['#C0392B','\u2264'+(LY-3)],['#D3D8DF','No data']].map(x=>`<span><i class="dot" style="background:${x[0]}"></i>${x[1]}</span>`).join('');
+
+ const gs=DATA.goals;
+ window._charts.push(new Chart($('#goalChart'),{type:'bar',data:{labels:gs.map(g=>'G'+g.goal_no),
+  datasets:[{label:'With data',data:gs.map(g=>g.with_data),backgroundColor:gs.map(g=>SDGCOL[g.goal_no])},
+            {label:'No data',data:gs.map(g=>g.no_data),backgroundColor:'#E1E4E9'}]},
+  options:{plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>gs[i[0].dataIndex].short}}},
+   scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:'#F0F1F4'},ticks:{stepSize:5}}}}}));
+
+ const topA=DATA.agencies.slice(0,9);
+ window._charts.push(new Chart($('#agencyChart'),{type:'bar',data:{labels:topA.map(a=>a.a.length>18?a.a.slice(0,17)+'\u2026':a.a),
+  datasets:[{label:'With data',data:topA.map(a=>a.w),backgroundColor:'#00689D'},
+            {label:'No data',data:topA.map(a=>a.n),backgroundColor:'#E1E4E9'}]},
+  options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>topA[i[0].dataIndex].a}}},
+   scales:{x:{stacked:true,grid:{color:'#F0F1F4'},ticks:{stepSize:5}},y:{stacked:true,grid:{display:false}}}}}));
+}
+
+function trendCell(r){
+ if(r.pc==null) return '<span class="trend t-flat">\u2014</span>';
+ const arrow=r.tr==='increased'?'\u25B2':r.tr==='decreased'?'\u25BC':'\u2014';
+ let cls='t-flat';
+ if(r.intp==='improving') cls='t-up'; else if(r.intp==='worsening') cls='t-down';
+ const sign=r.pc>0?'+':'';
+ const title=(r.intp&&r.intp!=='n/d')?` title="${r.intp}"`:' title="direction not classified"';
+ return `<span class="trend ${cls}"${title}>${arrow} ${sign}${r.pc}%</span>`;
+}
+function agencyMatches(custField, agency){ return (custField||'').split(',').map(s=>s.trim()).includes(agency); }
+
+function filtered(){
+ let rs=DATA.records.filter(r=>{
+  if(state.st!=='all'&&r.st!==state.st)return false;
+  if(state.goal&&r.g!==state.goal)return false;
+  if(state.agency!=='all'&&!agencyMatches(r.cust,state.agency))return false;
+  if(state.q){const q=state.q.toLowerCase();if(!((r.name||'').toLowerCase().includes(q)||(r.code||'').toLowerCase().includes(q)||(r.cust||'').toLowerCase().includes(q)||(r.org||'').toLowerCase().includes(q)))return false;}
+  return true;});
+ const k=state.sortK,d=state.sortDir;
+ rs.sort((a,b)=>{let x=a[k],y=b[k];
+  if(k==='pc'||k==='ly'){x=x==null?-1e9:x;y=y==null?-1e9:y;}
+  if(k==='st'){const o={up_to_date:0,recent:1,dated:2,no_data:3};x=o[a.st];y=o[b.st];}
+  if(typeof x==='string')return d*x.localeCompare(y);
+  if(k==='g')return (a.g-b.g)*d||a.no-b.no; return (x-y)*d;});
+ return rs;
+}
+function renderTable(){
+ const rs=filtered();
+ $('#count').textContent=rs.length+' of '+DATA.records.length+' shown';
+ $('#tbody').innerHTML=rs.map(r=>{const c=SDGCOL[r.g];
+  return `<tr class="row" data-id="${r.id}">
+   <td><span class="gdot" style="background:${c}"></span><span class="code">${r.code}</span></td>
+   <td class="iname">${r.name.length>120?r.name.slice(0,120)+'\u2026':r.name}</td>
+   <td class="mono">${r.ly?r.ly+' \u00b7 '+fmt(r.lv):'\u2014'}</td>
+   <td>${trendCell(r)}</td>
+   <td><span class="badge b-${r.st}">${STL[r.st]}</span></td>
+   <td class="cust hidem">${r.cust||'\u2014'}</td></tr>`;}).join('')
+  || `<tr><td colspan="6" style="padding:34px;text-align:center;color:var(--mut)">No indicators match these filters.</td></tr>`;
+ $$('#tbody .row').forEach(tr=>tr.onclick=()=>openDrawer(+tr.dataset.id));
+}
+
+/* DRAWER */
+function sparkline(r,color){
+ const pts={};
+ DATA.years.forEach((y,i)=>{ if(r.series[i]!=null) pts[y]=r.series[i]; });
+ if(r.by!=null && r.bl!=null && !(r.by in pts)) pts[r.by]=r.bl;
+ const xs=Object.keys(pts).map(Number).sort((a,b)=>a-b);
+ if(xs.length<2) return '<div style="color:var(--mut);font-size:12px;padding:8px 0">Not enough points for a trend line.</div>';
+ const ys=xs.map(y=>pts[y]);
+ const minX=xs[0],maxX=xs[xs.length-1],minY=Math.min(...ys),maxY=Math.max(...ys);
+ const W=400,H=74,pad=8;
+ const PX=y=>pad+((y-minX)/(maxX-minX||1))*(W-2*pad);
+ const PY=v=>H-pad-(maxY===minY?0.5:(v-minY)/(maxY-minY))*(H-2*pad);
+ const d=xs.map((y,i)=>(i?'L':'M')+PX(y).toFixed(1)+' '+PY(pts[y]).toFixed(1)).join(' ');
+ const dots=xs.map(y=>`<circle cx="${PX(y).toFixed(1)}" cy="${PY(pts[y]).toFixed(1)}" r="2.6" fill="${color}"/>`).join('');
+ const lbl=`<text x="${PX(minX).toFixed(1)}" y="${H-1}" font-size="9" fill="#9AA1AC" font-family="IBM Plex Mono">${minX}</text>`+
+           `<text x="${PX(maxX).toFixed(1)}" y="${H-1}" font-size="9" fill="#9AA1AC" font-family="IBM Plex Mono" text-anchor="end">${maxX}</text>`;
+ return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><path d="${d}" fill="none" stroke="${color}" stroke-width="2.2"/>${dots}${lbl}</svg>`;
+}
+function openDrawer(id){
+ const r=DATA.records.find(x=>x.id===id),c=SDGCOL[r.g];
+ const intpCol=r.intp==='improving'?'var(--up)':r.intp==='worsening'?'var(--dat)':'var(--ink)';
+ const chgTxt=r.pc!=null?`<span style="color:${intpCol};font-weight:600">${r.pc>0?'+':''}${r.pc}%</span>${r.intp&&r.intp!=='n/d'?' \u00b7 '+r.intp:''}`:'\u2014';
+ let tgt='';
+ if(r.tv!=null){const met=r.tmet;const pill=met==null?['#EEF0F3','#5B636F','Direction n/d']:(met?['#E7F4EC','#1F8A4C','Target met']:['#FAE7E4','#C0392B','Not yet met']);
+   tgt=`<div class="dsec"><h4>Target</h4><div class="kv"><dt>Numeric target</dt><dd>${fmt(r.tv)}${r.tyr?' (by '+r.tyr+')':''}</dd></div>
+   <span class="pill" style="background:${pill[0]};color:${pill[1]}">${pill[2]}</span>
+   ${r.tnote?`<div class="note" style="margin-top:12px">${r.tnote}</div>`:''}</div>`;}
+ else tgt=`<div class="dsec"><h4>Target</h4><div class="note">${r.tnoteonly||'No single numeric target on file. Assess against the base\u2192latest trend, or add Mongolia\u2019s VNR / Vision 2050 sector target.'}</div></div>`;
+ const action=r.st==='no_data'?`<div class="dsec"><h4>Suggested next step</h4><div class="note">No data on file. Contact the custodian (<b>${(r.cust||'\u2014').split(',')[0]}</b>) for methodology or a global-database proxy, and check whether the national source holds it administratively.</div></div>`:'';
+ $('#drawer').innerHTML=`
+  <div class="dhead">
+   <button class="x" onclick="closeDrawer()">\u2715</button>
+   <span class="dcode" style="background:${c}">${r.code} \u00b7 Goal ${r.g}</span>
+   <h3>${r.name}</h3>
+  </div>
+  <div class="dbody">
+   ${sparkline(r,c)}
+   <div class="kv">
+    <dt>Status</dt><dd><span class="badge b-${r.st}">${STL[r.st]}</span></dd>
+    <dt>Latest value</dt><dd>${r.ly?fmt(r.lv)+'  ('+r.ly+')':'\u2014'}</dd>
+    <dt>Base</dt><dd>${r.bl!=null?fmt(r.bl)+(r.by?'  ('+r.by+')':''):'\u2014'}</dd>
+    <dt>Change since base</dt><dd>${chgTxt}</dd>
+   </div>
+   <div class="dsec"><h4>Ownership</h4>
+    <div class="kv"><dt>UN custodian</dt><dd>${r.cust||'\u2014'}</dd><dt>National source</dt><dd>${r.org}</dd></div></div>
+   ${tgt}
+   ${action}
+  </div>`;
+ $('#scrim').classList.add('show');$('#drawer').classList.add('show');
+}
+function closeDrawer(){$('#scrim').classList.remove('show');$('#drawer').classList.remove('show');}
+
+/* controls (bound once) */
+$('#q').oninput=e=>{state.q=e.target.value;renderTable();};
+$$('.chip').forEach(c=>c.onclick=()=>{$$('.chip').forEach(x=>x.classList.remove('on'));c.classList.add('on');state.st=c.dataset.st;renderTable();});
+$('#agencySel').onchange=e=>{state.agency=e.target.value;renderTable();};
+$$('th.sortable').forEach(th=>th.onclick=()=>{const k=th.dataset.k;state.sortDir=(state.sortK===k?-state.sortDir:1);state.sortK=k;renderTable();});
+$('#scrim').onclick=closeDrawer;document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();});
+
+/* ============================================================================
+   DATA LOADING
+   ============================================================================ */
+const EXCEL_FILE='SDG_data.xlsx';   // <-- the file that sits next to this page
+function setGate(state,title,msg,showPick,err,hint){
+ $('#gateSpin').style.display=state==='load'?'block':'none';
+ $('#gateTitle').textContent=title;
+ $('#gateMsg').innerHTML=msg||'';
+ $('#gatePick').style.display=showPick?'inline-flex':'none';
+ $('#gateErr').textContent=err||'';
+ $('#gateHint').innerHTML=hint||'';
+}
+function hideGate(){ $('#gate').style.display='none'; }
+function srcOk(name,extra){ $('#srcDot').className='dot'; $('#srcText').innerHTML='Data source: <b>'+name+'</b>'+(extra?' \u00b7 '+extra:''); }
+
+function ingest(wb, sourceName){
+ try{
+   DATA=parseWorkbook(wb);
+   renderAll();
+   hideGate();
+   const S=DATA.summary;
+   srcOk(sourceName, `sheet "${DATA.sheetName}" \u00b7 ${S.total} indicators \u00b7 latest ${DATA.latestYear}`);
+ }catch(err){
+   setGate('err','Couldn\u2019t read that file',
+     'The workbook loaded but didn\u2019t look like the NSO data-availability sheet.',
+     true, err.message,
+     'Expected columns: <b>No · Indicators · Base year · Base level · yearly columns · Organization · Data source</b>.');
+   $('#srcDot').className='dot err'; $('#srcText').textContent='Load error';
+ }
+}
+function readArrayBuffer(buf, sourceName){
+ const wb=XLSX.read(new Uint8Array(buf),{type:'array'});
+ ingest(wb, sourceName);
+}
+function handleFileInput(file){
+ setGate('load','Reading '+file.name+'\u2026','');
+ const fr=new FileReader();
+ fr.onload=()=>readArrayBuffer(fr.result, file.name);
+ fr.onerror=()=>setGate('err','Couldn\u2019t open the file','',true,'The browser could not read this file.','');
+ fr.readAsArrayBuffer(file);
+}
+$('#gateFile').addEventListener('change',e=>{ if(e.target.files[0]) handleFileInput(e.target.files[0]); });
+$('#reFile').addEventListener('change',e=>{ if(e.target.files[0]){ $('#gate').style.display='flex'; handleFileInput(e.target.files[0]); } });
+
+/* On load: try to fetch the published Excel next to the page.
+   If that fails (e.g. opened as a local file://), offer the file picker. */
+(function boot(){
+ setGate('load','Loading SDG data\u2026','Reading <b>'+EXCEL_FILE+'</b>.');
+ fetch(EXCEL_FILE,{cache:'no-store'})
+  .then(res=>{ if(!res.ok) throw new Error('HTTP '+res.status); return res.arrayBuffer(); })
+  .then(buf=>readArrayBuffer(buf, EXCEL_FILE))
+  .catch(err=>{
+    setGate('empty','Choose the SDG Excel file',
+      'This page couldn\u2019t automatically find <b>'+EXCEL_FILE+'</b> next to it. Pick the workbook to view the dashboard.',
+      true, '',
+      'When published on a web server with <b>'+EXCEL_FILE+'</b> beside this page, it loads automatically \u2014 no clicking needed.');
+    $('#srcDot').className='dot warn'; $('#srcText').textContent='No file loaded yet';
+  });
+})();
+</script>
+</body>
+</html>
